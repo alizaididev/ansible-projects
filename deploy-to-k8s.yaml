@@ -1,0 +1,17 @@
+---
+ - name: Deploy app in new namespace
+   hosts: localhost ## 15.20 >> 7:00
+   tasks:
+     - name: Create a k8s namespace
+       kubernetes.core.k8s:  ### both k8s and ansible use yaml, so we can get the code from the k8s documentation too.
+         name: my-app
+         api_version: v1
+         kind: Namespace
+         state: present
+        #  kubeconfig: /Users/ali/terraform/kubeconfig_myapp-eks-cluster ## configuration, to know what the address of the cluster is.
+     - name: Deploy nginx app 
+       kubernetes.core.k8s:
+         src:
+         state: present 
+        #  kubeconfig: /Users/ali/terraform/kubeconfig_myapp-eks-cluster ## dont need anymore as it inefficient to write this line time so we use this>> export K8S_AUTH_KUBECONFIG=/Users/ali/terraform/kubeconfig_myapp-eks-cluster
+         namespace: my-app

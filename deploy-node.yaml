@@ -1,0 +1,60 @@
+---
+- name: Install node and npm
+  hosts: 179.145.79.13
+  tasks:
+  - name: update apt repo and cache
+    apt: update_cache , force_apt_get , cache_valid_time=3600
+  - name: install node js and npm
+    apt:
+      pkg: 
+        - nodejs
+        - npm
+
+#### its not a goood practice to do work as an root acc, it would be security issue if some get access as a root user he can harm the apps installed as a root user , 
+### so hence we created a user with admin privillages and adding it into the admin group so that he can execute tasks. become_user is the attribute we gonna use in 
+### deploy code and setting become to true. these two attributes become and become_user tells ansible we want to add another user ali 
+## for this to execute we also need to change the path of destination
+
+- name: adding new user 
+  hosts: 179.145.79.13
+  vars_files:
+    project-vars
+  tasks:
+    - name: Create linux user
+      user:
+       name: "{{linux_user}}" ###  ansible-playbook -i hosts deploy-node.yaml -e "version=1.0.0 location=Users/ali/ansible/nodejs-app name=##anything we want to write here in terminal"
+       comments: Node User 
+       group: admin
+      
+
+     
+
+- name: Deploy node and npm
+  hosts: 179.145.79.13
+  become: True 
+  become_user: "{{linux_user}}" ##using name could give us some error so its unvalid to use it. we cant use linux-user. we use combine linuxuser.
+  vars_files:
+    project-vars
+ ## use this to define the location of the parametrized varibles below. as these values are also hard coded so to make it configureable, we use terminal
+        ###  ansible-playbook -i hosts deploy-node.yaml -e "version=1.0.0 location=Users/ali/ansible/nodejs-app"  so we use this command to set these vars.
+     ## just like python variables we could use here linux_user
+  tasks:
+  - name: unpack the nodejs file 
+    unarchive:       ## builtin apt module for tar files.
+      src: "{{node-file-location}}" ## refrencing variables, using double curly braces. we close this in double quotes as ansible will think it as a dictionary value instead of variable.
+      dest: "{{user_home_dir}}"
+    remote_src: yes
+  - name: Install dependencies 
+    npm:   ## most of the tasks are executed on remote server so in the path we write remote server path. above used path is just for understanding!
+      path: "{{user_home_dir}}/package" ## path is same as used in the project vid
+  - name: Start the app 
+    command:  ## command is more secure having these in isolated & not running them directly
+      chdir: "{{user_home_dir}}/package/app"
+      cmd: node server
+    async: 1000     ### for running the process in background these are general attributes, thse are not part of cmd module 
+    pool: 0
+  - name: Ensure app is running  ## to see that app is running from the vs code terminal instead of remote server, we use debug method. more open to shell injection.
+    shell: ps aux | grep node
+    register: app_status   ### variables 
+  - debug: msg={{app_status.stdout_lines}}
+

@@ -1,0 +1,13 @@
+---
+-  name: configure nginx web server
+   hosts: webserver
+   tasks:
+   - name: Install nginx server #unintall to uninstall it we write uninstall nginx server.
+     apt: ## module to install these.
+       name: nginx=1.24* # to install a specific version, after nginx we write the version and in state we write present instead of latest now, can also re 1.14*.
+       state: present #absent , instead of present we using absent here as we want to uninstall it.
+
+   - name: start nginx server ## stop, to stop we use stop instead of start.
+     service: 
+       name: nginx
+       state: started ## stopped ,similarly here we using stopped.

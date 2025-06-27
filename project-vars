@@ -1,0 +1,7 @@
+### just like we use to create vars file separte in terraform we do the same thing in ansible to avoid the in convienence , for that instead = we use : as its yaml.
+version: 1.0.0 
+location: Users/ali/ansible/nodejs-app
+linux_name: ali
+user_home_dir: /home/{{linux_user}}
+
+docker_password: ##put your password here. 

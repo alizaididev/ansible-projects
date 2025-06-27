@@ -1,0 +1,94 @@
+---
+- name: Install Docker
+  hosts: aws_ec2
+  become: yes ## to execute commands as a root user 
+  tasks:
+    - name: Install Docker
+      yum:  ## now here one thing to note as we are using amazonlinux so there apt doesnt work so we yum.
+        name: docker
+        update_cache: yes
+        state: present
+    - name: Start docker daemon 
+      systemd:  ## for system control we use this module. controls system serveices on remote hosts
+        name: docker
+        state: started    
+
+### 2nd Play > Installing docker compose
+
+- name: Install Docker compose
+  hosts: aws_ec2
+  become: yes
+  become_user: ali
+  tasks:
+    - name: Create docker-compose directory
+      file: ## we cannot use yum pacakge here, so we use file module 
+        path: ~/.docker/cli-plugins
+        state: directory ## as it stores inside a folder so we use directory here instead of present
+    - name: Get architecture of remote machine
+      shell: uname -m ## to show the arch of the remote server
+      register: remote_arch
+    - name:  Install docker compose 
+      get_url: 
+        url: https://github.com/docker/compose/releases/download/docker-compose-linux-{{remote_arch}}
+        dest: ~/.docker/cli-plugins/docker-compose
+        mode: +x ## another module to execute the commands
+
+### 3rd play start docker daemon
+### we can reduce the number of plays with just one task inside 
+#### !!!Imp!!! command and shell use only when there is no appropriate ansible module available. plus they do not have state management inside which we get from ansible
+# - name: Start docker
+#   hosts: docker_server
+#   become: yes ## need root user here also
+#   tasks:
+    # - name: Start docker docker-compose
+    #   systemd:  ## for system control we use this module. controls system serveices on remote hosts
+    #     name: docker
+    #     state: started
+
+### 4th play >> add ec2-user to docker group
+
+- name: Create new linux user 
+  hosts: aws_ec2
+  become: yes
+  tasks:
+    - name: Create a new linux user 
+      user: ## to add the user , we use this user module in ansible
+        name: ali 
+        groups: "{{user_groups}}"
+    
+
+# - name: Test pull docker
+#   hosts: docker_server
+#   tasks:
+#     - name: Pull redis
+#       docker_image:  ## to pull the image we use this docker built-in module instead of using shell or command method
+#          name: redis
+#          source: pull
+
+### 5th play >> Start docker containers
+
+- name: Start docker containers
+  hosts: aws_ec2
+  become: yes
+  become_user: ali
+  vars_files:
+    - project-vars
+  # vars_prompt:   ## built in method for the password , howevere instead of entering password in prompt everytime, we prefer to store password in vars file.
+  #   - name: docker_passwword
+  #     prompt: Enter password for docker registry
+  tasks:
+    - name: Copy docker compose 
+      copy:     ## for copying files from the local system to the node, or from ansible control node to managed node  
+        src: /User/ali/bootcamp-java-mysql-project/docker-compose-full.yaml
+        dest: /home/ali/docker-compose.yaml
+    - name: Docker login
+      docker_login:   ## buuilt docker module similar to docker login 
+        username: ali ## write docker regirtry name here same goes for the password below
+        password: {{docker_passwword}} ## as we dont want to hardcode this so we used this method
+    - name: Start containers from compose ## another module to run the compose containers 
+      community.docker.docker_compose_v2:
+        project_src: /home/ali
+
+
+### Note #### 
+### we created this file to make it more generic, rather than limiting it to just ec2-user , so w made some changes here so that we could resuse the playbook which is helpful.

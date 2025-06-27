@@ -1,0 +1,104 @@
+--- 
+- name: Install Java and net-tools
+  hosts: nexus_server  ## no hard-coded ip address , if we wannna change the ip address in hosts file instead of previous so we use this. rather than changing everytime the ip.
+  tasks:
+   - name: update apt repo and cache
+     apt: update_cache , force_apt_get , cache_valid_time=3600
+   - name: Install Java 8
+     apt: name=openjdk-8-jre-headless
+   - name: Install net-tools
+     apt: name=net-tools
+
+### 2nd play for downloading
+
+- name: Download and Unpack Nexus Installer 
+  hosts: nexus_server
+  tasks:
+    - name: Check nexus folder stats
+      stat:   
+        path: /opt/nexus
+      register: stat_result
+    - name: Download Nexus
+      get_url: ## for downloading anything from external world we use this get_url method.
+        url:  https://download.sonatype.com/nexus/3/latest-unix.tar.gz ## important concept to know, used in many usecases.
+        dest: /opt/
+      register: download_result
+    - name: Untar Nexus Installer
+      unarchive:
+        src: "{{download_result.dest}}"  ## important concept to know, used in many usecases.
+        dest: /opt/
+        remote_src: yes
+      when: not stat_result.stat.exists
+    - name: Find the Nexus Folder
+      find:  ## using this find module we can grep the name of the folder, using regular expresision
+        paths: /opt
+        patterns: "nexus-*" ## regular expression to find something 
+        file_type: directory
+      register: find_result
+    # - name: Check nexus folder stats
+    #   stat:   ### we use stat module to check either the nexus exist or not 
+    #     path: /opt/nexus
+    #   register: stat_result
+    - name: Rename nexus folder
+      shell: mv {{find_result.file[0].path}} /opt/nexus
+      when: not stat_result.stat.exists ## conditional attribute to check if above statement exist or not. if it exists we not going to execute it. to skip shell or commands.
+
+### 3rd play for ownership to group
+
+- name: Create nexus user to own nexus folder
+  hosts: nexus_server
+  tasks:
+    - name: Ensure nexus group exists 
+      group:  ## another module to create the group first and then user in the group
+        name: nexus
+        state: present
+    - name: Create nexus user
+      user: nexus
+      group: nexus
+    - name: Make nexus user owner of the folder
+      file:  ## for this we use file module to give the ownership permission to the user and in the group
+        path: /opt/nexus
+        state: directory
+        owner: nexus
+        group: nexus
+        recurce: yes 
+    - name: Make nexus user owner of sonatype-work folder
+      file:  ## for this we use file module to give the ownership permission to the user and in the group
+        path: /opt/sonatype-work
+        state: directory
+        owner: nexus
+        group: nexus
+        recurce: yes 
+
+## 4th play for vim file 
+
+- name: Start nexus with nexus user
+  hosts: nexus_server
+  become: True
+  become_user: nexus
+  tasks:
+    - name: Set run_as_user nexus
+      lineinfile:   ## blockinfile, to insert/update/remove a multi-line text surrounded by customizeable marker lines.  ###### also another module lineinfile
+        path: /opt/nexus/bin/nexus.rc
+        regex: '^run_as_user=""' ### use of regular e for executing
+        line: run_as_user="nexus"
+    - name: Start nexus
+      command: /opt/nexus/bin/nexus start
+
+
+### 5th play >> seeing output on terminal.
+- name: Verify nexus running
+  hosts: nexus_server
+  tasks:
+    - name: Check with ps 
+      shell: ps aux | grep nexus
+      register: app_status   ### variables 
+    - debug: msg={{app_status.stdout_lines}}
+    - name: Wait 40 seconds
+      pause:
+        minutes: 40 seconds
+    - name: Check with netstat
+      shell: netstat -plnt ## immidiately starting the app after this it doesnt give netstat output in vs terminal , to fix this timing issue >> ### pause and waitfor module.
+      register: app_status
+    - debug: msg={{app_status.stdout_lines}}
+

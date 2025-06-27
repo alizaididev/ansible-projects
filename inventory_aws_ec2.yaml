@@ -1,0 +1,14 @@
+--- 
+plugin: aws_ec2
+reigons: 
+  - eu-central-1
+
+# filters:
+#   tag:Name: dev* ### this will give us only servers with dev 
+#   instance-state-name: running ## if we want the running servers  
+
+keyed_groups: ## if we want groups of servers like prod group servers and dev group servers we use this keyed_groups attribute
+  - key: tags 
+    prefix: tag
+  - key: instance_type
+    prefix: instance_type
